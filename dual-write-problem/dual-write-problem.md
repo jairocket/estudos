@@ -6,7 +6,7 @@ A consistência dos dados em um software é requisito fundamental. A criticidade
 
 Imagine uma aplicação que gerencia a venda de planos de internet que possui interface do usuário, um solução de autenticação, o sistema de cobranças, o backend enforça as regras de negócio e persiste as informações no banco de dados. Esses subsistemas interagem entre si para garantir o pleno funcionamento do nosso sistema imaginário. Em um sistema monolítico, todos esses subsistemas vivem na mesma aplicação e compartilham o mesmo banco de dados.
 
-![alt text](image-4.png)
+![alt text](image.png)
 
 Esse tipo de arquitetura tende a ser menos complexa de ser construída, o que permite entrega de valor mais rápida. Contudo, tende a deixar a desejar quando o quesito é resiliência. Se houver um problema em qualquer dos módulos,toda a aplicação deixa de funcionar.
 
