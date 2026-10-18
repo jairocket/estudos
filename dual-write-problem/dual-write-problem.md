@@ -52,3 +52,8 @@ Isso permite que guardar detalhes de cada evento. Bancos são um bom exemplo de 
 ### Listen to Yourself
 
 Uma outra possibilidade é o serviço publicar a mensagem no broker, consumir a mensagem e salvar no seu banco de dados. 
+
+#### Qual escolher?
+
+A solução depende da situação concreta que que se pretende resolver. O padrão outbox traz a complexidade de manter duas tabelas. Event Sourcing te obriga a calcular o estado atual a partir do último evento. 
+Algo importante a se considerar é o conceito de conceito de consistência eventual. Essas estratégias garantem a consistência dos dados. Problemas de rede ou lag no message broker pode levar a um atraso na sincronização entre  microsserviços. Quando o problema for solucionado, a consistência dos dados será reestabelecida.
