@@ -26,7 +26,7 @@ Nesse cenário, se uma mensagem for publicada no broker enquanto algum serviço 
 Em nosso sistema, o serviço de compras pode estar configurado para validar o pedido, salvar a compra no banco de dados e publicar uma mensagem em um tópico kafka `internet-plan-sold-topic`. A aplicação responsável pelas ordens de serviço consome esse tópico e cria uma nova requisição com status pendente para o time operacional realizar a instalação da internet do cliente que efetuou a compra.
 A comunicação assíncrona traz a complexidade de implementar message broker e lidar com a risco de perdas de mensagens.
 
--- Imagem --
+![alt text](image-1.png)
 
 ## Dual Write Problem
 
@@ -51,13 +51,16 @@ Isso permite que guardar detalhes de cada evento. Bancos são um bom exemplo de 
 
 ### Listen to Yourself
 
-Uma outra possibilidade é o serviço publicar a mensagem no broker, consumir a mensagem e salvar no seu banco de dados. 
+Uma outra estratégia que garante a consistência dos dados consiste em o serviço receber o comando e publicá-lo diretamente no message broker. Posteriormente, um listener configurado no mesmo serviço consome a mensagem publicada e salva no banco de dados. Isso é particularmente útil quando temos um processo que requer muitas operações de leitura e escrita no banco de dados ou que executa um algoritmo complexo que o cliente não precisa esperar pela resposta. Essa estratégia ajuda a reduzir a latência sem abrir mão da consistência dos dados. 
+
+É preciso garantir que o conteúdo mensagem publicada no message broker seja compatível com o schema do banco de dados para que a estratégia funcione. 
+Um problema potencial desta estratégia é que outros serviços podem consumir e processar a mensagem antes do próprio serviço que a publicou. Isso significa os dados permanecerão inconsistentes até o serviço persistir os dados . Esse é o conceito de consistência eventual.
+
+#### Consistência eventual
+
+ Todas essas estratégias garantem a consistência dos dados, todavia, problemas de rede ou lag no message broker pode levar a um atraso na sincronização entre  microsserviços. 
+Nesse cenário, após o ser funcionamento ser restabelecido, o time pode atuar para garantir a sincronização dos dados. 
 
 #### Qual escolher?
 
 A solução depende da situação concreta que que se pretende resolver. O padrão outbox traz a complexidade de manter duas tabelas. Event Sourcing te obriga a calcular o estado atual a partir do último evento. No padrão listen to yourself, existe o risco de serviços consumidores obtenham a informação antes mesmo que o serviço que publicou a mensagem.
-
-#### Consistência eventual
-
-Isso nos leva ao conceito de consistência eventual. Todas essas estratégias garantem a consistência dos dados, todavia, problemas de rede ou lag no message broker pode levar a um atraso na sincronização entre  microsserviços. 
-Nesse cenário, após o ser funcionamento ser restabelecido, o time pode atuar para garantir a sincronização dos dados.
