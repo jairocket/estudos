@@ -1,6 +1,7 @@
 # Dual Write Problem
 
-A consistência dos dados em um software é requisito fundamental. A criticidade da tempestividade dessa consistência pode variar de acordo com o problema que a aplicação pretende resolver. Todavia, é algo que não deveria ser negligenciado na fase de planejamento. Dentre os desafios que podemos enfrentar para garantir essa consistência, destacamos o Dual Write Problem. Para compreender esse conceito, é preciso conhecer o contexto em que ele se manifesta. Para tanto, o caminho que me parece mais simples é entender a diferença entre sistemas monolíticos e microsserviços.
+Sexta-feira. Depois de uma semana cansativa, você planejou viajar para para um pequeno paraíso no interior. Você tem duas horas até chegar à rodoviária. Todas sua bagagem está pronta. Você pede solicita uma corrida em um novo aplicativo de carona que seu colega te indicou, mas, após dez minutos nenhum motorista aceitou a corrida. Coincidentemente, seu amigo te liga e oferece uma carona e você cancela o pedido. O aplicativo mostra a efetivação do cancelamento mas você não recebeu o estorno do pagamento. Você vai se aborrecer no suporte ao cliente. 
+Os desenvolvedores desse aplicativo imaginário não garantiram a consistência dos dados: o gerenciador de caronas cancelou seu pedido, mas o sistema responsável pelo estorno nunca ficou sabendo. Uma das possíveis causas é o `Dual Write Problem`, um conhecido desafio para garantia de consistência de dados no universo dos microsserviços. Para compreender esse conceito, vamos revisar a diferença entre sistemas monolíticos e microsserviços.
 
 ## Sistemas Monolíticos
 
@@ -8,15 +9,17 @@ Imagine uma aplicação que gerencia a venda de planos de internet que possui in
 
 ![alt text](image.png)
 
-Esse tipo de arquitetura tende a ser menos complexa de ser construída, o que permite entrega de valor mais rápida. Contudo, tende a deixar a desejar quando o quesito é resiliência. Se houver um problema em qualquer dos módulos, toda a aplicação deixa de funcionar. O alto nível de acoplamento entre os subsistemas dificulta a escalabilidade.
+Esse tipo de arquitetura tende a ser menos complexa, o que permite rápida entrega de valor. Contudo, tende a deixar a desejar quando o quesito é resiliência. Se houver um problema em qualquer dos módulos, toda a aplicação deixa de funcionar. Outro problema é que alto nível de `acoplamento` entre os subsistemas dificulta a escalabilidade: seu gargalo está no sistema de pagamentos, mas para escalá-lo você precisa escalar toda a aplicação.
+
+Aplicações de pequeno porte, não críticas e que não possuem requisito de escalabilidade podem se beneficiar de sistemas monolíticos.
 
 ## Microsserviços
 
-Se o mesmo sistema tivesse sido construído com uma arquitetura baseada em microsserviços, cada um dos módulos constituiria uma aplicação especializada, com seu próprio banco de dados dedicado. Isso permite que essas aplicações se comuniquem assincronamente, contribuindo para melhorar a resiliencia do sistema como um todo.
+Se o mesmo sistema tivesse sido construído com uma arquitetura baseada em microsserviços, cada um dos módulos constitui uma aplicação especializada responsável por uma parte da solução; cada uma com seu próprio banco de dados dedicado. A arquitetura de microsserviços possui um nível de complexidade maior. No entanto, em sistemas críticos, grandes e que demandam escalabilidade esse trade off pode fazer sentido. Desde que o contrato de interface entre os microsserviços seja mantido, novas funcionalidades podem ser adicionadas e os serviços podem ser conteinerizados e escalados de forma granular.
 
 ### Comunicação Síncrona
 
-Na comunicação síncrona, um serviço A envia uma requisição diretamente a um serviço B, que processa o dado e retorna uma resposta ao serviço A. No nosso exemplo, quando o usuário for se autenticar no sistema, a interface poderia enviar as credenciais do usuário via `requisição http` para o sistema responsável pela autenticação. Este última faz todas as validações necessárias e devolve um `resposta http` reportando o sucesso ou a falha na autenticação.
+Na comunicação síncrona, um serviço A envia uma requisição diretamente a um serviço B, que processa a requisição e retorna uma resposta ao serviço A. No nosso exemplo, quando o usuário for se autenticar no sistema, a interface gráfica poderia enviar as credenciais do usuário via `requisição http` para o sistema responsável pela autenticação. Este último faz todas as validações necessárias e devolve um `resposta http` reportando o sucesso ou a falha na autenticação.
 Perceba que o serviço que requisita precisa esperar a resposta do serviço requisitado. Se o serviço requisitado estiver fora do ar, a requisição não poderá ser processada. 
 
 ### Comunicação Assíncrona
@@ -24,14 +27,14 @@ Perceba que o serviço que requisita precisa esperar a resposta do serviço requ
 Em contraste, na comunicação assíncrona, o serviço requisitante não precisa conhecer os serviços que processam os dados. Utilizando o padrão publisher/subscriber, um serviço A publica uma mensagem em um [message broker](https://devskin.com/post/message-broker-comparativo-tcnico-entre-kafka-rabbitmq-e-sqs) (como kafka, aws sqs/sns, RabbitMQ, etc) e os serviços B, C - ou o próprio serviço A - consomem a mensagem e executa o processamento necessário.
 Nesse cenário, se uma mensagem for publicada no broker enquanto algum serviço consumidor estiver fora do ar, o processamento poderá ocorrer quando o serviço voltar a funcionar. Isso traz maior resiliência ao sistema.
 Em nosso sistema, o serviço de compras pode estar configurado para validar o pedido, salvar a compra no banco de dados e publicar uma mensagem em um tópico kafka `internet-plan-sold-topic`. A aplicação responsável pelas ordens de serviço consome esse tópico e cria uma nova requisição com status pendente para o time operacional realizar a instalação da internet do cliente que efetuou a compra.
-A comunicação assíncrona traz a complexidade de implementar message broker e lidar com a risco de perdas de mensagens.
+A comunicação assíncrona traz a complexidade de implementar message broker, lidar com a risco de perdas de mensagens, mensagens duplicadas, entre outros.
 
 ![alt text](image-1.png)
 
 ## Dual Write Problem
 
 Mas o que acontece quando o serviço de compras salva no seu banco de dados a requisição mas a publicação no message broker falha? Exatamente. Os dados ficam inconsistentes. No nosso exemplo, a compra será registrada mas o time responsável por instalar a internet para o cliente não receberá a ordem de serviço. Casos recorrentes elevam os custos com suporte ao cliente e podem culminar em crise de reputação para o negócio. 
-O problema de dual write ocorre porque não é possível implementar um fluxo que salve a mesma informação em dois sistemas diferentes de forma atômica: não tem como apagar o registro da compra porque a publicação do tópico falhou. Felizmente, existem algumas formas de mitigar esse problema.
+O problema de dual write ocorre porque não é possível implementar um fluxo que salve a mesma informação em dois sistemas diferentes de forma atômica: não tem como apagar o registro da compra do banco de dados porque a publicação no message broker falhou. Também não há como desfazer a publicação no message broker caso a escrita no banco de dados falhe. Felizmente, existem algumas formas de mitigar esse problema.
 
 ### Outbox Pattern
 
@@ -45,21 +48,20 @@ Consiste em persistir os eventos e não o estado atual de determinada entidade. 
 * Quando atribuída a um colaborador, o status passa a ser `EXECUTING`
 * Quando a internet é disponibilizada para o cliente, o status passa a ser `FINISHED`.
 
-Tradicionalmente, persistimos no banco de dados a ordem com status `PENDING` e apenas atualizamos o status do registro quando necessário. Em Event Sourcing, salvamos todos os eventos e ao final do ciclo de vida da ordem de serviço teremos três registros no banco, um para cada status. Um outro processo publica as mensagens no message broker posteriormente.
+Poderíamos persistir no banco de dados a ordem de serviços com status `PENDING` e apenas atualizarmos o status do registro quando necessário. Em Event Sourcing, salvamos todos os eventos e ao final do ciclo de vida da ordem de serviço teremos três registros no banco, um para cada status. Um outro processo publica as mensagens no message broker posteriormente.
 
-Isso permite que guardar detalhes de cada evento. Bancos são um bom exemplo de caso de uso para event sourcing.
+Isso permite que guardar detalhes de cada evento, mas exige calcular o status atual com base nos eventos salvos. Bancos são um bom exemplo de caso de uso para Event Sourcing.
 
 ### Listen to Yourself
 
 Uma outra estratégia que garante a consistência dos dados consiste em o serviço receber o comando e publicá-lo diretamente no message broker. Posteriormente, um listener configurado no mesmo serviço consome a mensagem publicada e salva no banco de dados. Isso é particularmente útil quando temos um processo que requer muitas operações de leitura e escrita no banco de dados ou que executa um algoritmo complexo que o cliente não precisa esperar pela resposta. Essa estratégia ajuda a reduzir a latência sem abrir mão da consistência dos dados. 
 
 É preciso garantir que o conteúdo mensagem publicada no message broker seja compatível com o schema do banco de dados para que a estratégia funcione. 
-Um problema potencial desta estratégia é que outros serviços podem consumir e processar a mensagem antes do próprio serviço que a publicou. Isso significa os dados permanecerão inconsistentes até o serviço persistir os dados . Esse é o conceito de consistência eventual.
+Um problema potencial desta estratégia é que outros serviços podem consumir e processar a mensagem antes do próprio serviço que a publicou. Isso significa os dados permanecerão inconsistentes até o serviço processar e persistir os dados . Esse é o conceito de consistência eventual.
 
 #### Consistência eventual
 
- Todas essas estratégias garantem a consistência dos dados, todavia, problemas de rede ou lag no message broker pode levar a um atraso na sincronização entre  microsserviços. 
-Nesse cenário, após o ser funcionamento ser restabelecido, o time pode atuar para garantir a sincronização dos dados. 
+Todas essas estratégias garantem a consistência dos dados, todavia, problemas de rede ou lag no message broker pode levar a um atraso na sincronização entre  microsserviços. Nesse cenário, após o ser funcionamento ser restabelecido, é esperado que os dados fiquem consistentes.
 
 #### Qual escolher?
 
