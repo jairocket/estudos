@@ -56,13 +56,10 @@ Isso permite que guardar detalhes de cada evento, mas exige calcular o status at
 
 Uma outra estratégia que garante a consistência dos dados consiste em o serviço receber o comando e publicá-lo diretamente no message broker. Posteriormente, um listener configurado no mesmo serviço consome a mensagem publicada e salva no banco de dados. Isso é particularmente útil quando temos um processo que requer muitas operações de leitura e escrita no banco de dados ou que executa um algoritmo complexo que o cliente não precisa esperar pela resposta. Essa estratégia ajuda a reduzir a latência sem abrir mão da consistência dos dados. 
 
-É preciso garantir que o conteúdo mensagem publicada no message broker seja compatível com o schema do banco de dados para que a estratégia funcione. 
-Um problema potencial desta estratégia é que outros serviços podem consumir e processar a mensagem antes do próprio serviço que a publicou. Isso significa os dados permanecerão inconsistentes até o serviço processar e persistir os dados . Esse é o conceito de consistência eventual.
+É preciso garantir que o conteúdo da mensagem publicada no message broker seja compatível com o schema do banco de dados para que a estratégia funcione. 
 
-#### Consistência eventual
-
-Todas essas estratégias garantem a consistência dos dados, todavia, problemas de rede ou lag no message broker pode levar a um atraso na sincronização entre  microsserviços. Nesse cenário, após o ser funcionamento ser restabelecido, é esperado que os dados fiquem consistentes.
+Um problema potencial é que os serviços consumidores podem finalizar o processamento da mensagem mais rápido que o serviço produtor, gerando uma inconsistência temporária. Nessa janela, uma chamada http de um serviço downstream pode não encontrar os registros em processamento. Isso significa que esta solução garante *consistência eventual*: Quando os dados forem persistidos no produtor, consistência é restabelecida. 
 
 #### Qual escolher?
 
-A solução depende da situação concreta que que se pretende resolver. O padrão outbox traz a complexidade de manter duas tabelas. Event Sourcing te obriga a calcular o estado atual a partir do último evento. No padrão listen to yourself, existe o risco de serviços consumidores obtenham a informação antes mesmo que o serviço que publicou a mensagem.
+A solução depende da situação concreta que que se pretende resolver. O padrão outbox traz a complexidade de manter duas tabelas. Event Sourcing te obriga a calcular o estado atual a partir do último evento. No padrão listen to yourself, existe o risco de serviços consumidores obtenham a informação antes mesmo que o serviço que publicou a mensagem. Se quiser saber mais sobre esse tema e outros conteúdos relacionados à event-driven design, recomendo esse material da [confluent](https://developer.confluent.io/courses/microservices/overview/), que inspirou esse artigo.
